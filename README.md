@@ -33,6 +33,11 @@ Environment variables:
 | `LARAVEL_WISRA_ENABLED` | `true` | Enable or disable the instrumentation |
 | `LARAVEL_WISRA_LOCAL_ONLY` | `true` | Only run in the local environment |
 
+> **Note:** After enabling or disabling Wisra, clear the compiled view cache so changes take effect:
+> ```bash
+> php artisan view:clear
+> ```
+
 ## What it does
 
 - **View path comments** — Wraps each compiled view with `<!-- [view] /path/to/view.blade.php -->` and `<!-- [/view] -->`

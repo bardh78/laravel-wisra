@@ -1,0 +1,55 @@
+{
+    "name": "bardh78/laravel-wisra",
+    "description": "Inject HTML comments into compiled Blade templates showing view file paths. Useful for debugging and IDE integration (e.g. Wisra).",
+    "keywords": [
+        "bardh78",
+        "laravel",
+        "blade",
+        "view",
+        "debug",
+        "wisra"
+    ],
+    "homepage": "https://github.com/bardh78/laravel-wisra",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Bardhyl Fejzullahu",
+            "email": "bardh7@icloud.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^10.0|^11.0|^12.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0|^11.0|^12.0",
+        "orchestra/testbench": "^8.0|^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bardh78\\LaravelWisra\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Bardh78\\LaravelWisra\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Bardh78\\LaravelWisra\\LaravelWisraServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
