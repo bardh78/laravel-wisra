@@ -65,8 +65,8 @@ class LaravelWisraServiceProvider extends ServiceProvider
                 return $this->injectViewCommentsInsideBody($value, $start, $end);
             }
 
-            if ($this->shouldWrapWholeView($value)) {
-                return $start.$value.$end;
+            if ($this->shouldInjectViewCommentsAroundHtmlFragment($value)) {
+                return $this->injectViewCommentsAroundHtmlFragment($value, $start, $end);
             }
 
             return $value;
@@ -120,9 +120,38 @@ class LaravelWisraServiceProvider extends ServiceProvider
         return $valueWithClosingComment;
     }
 
-    protected function shouldWrapWholeView(string $value): bool
+    protected function shouldInjectViewCommentsAroundHtmlFragment(string $value): bool
     {
-        return ! preg_match('/<(?:!DOCTYPE|html\b|head\b|meta\b|title\b|base\b|link\b)/i', $value);
+        return (bool) preg_match('/<[A-Za-z][A-Za-z0-9:-]*\b[^>]*>/i', $value);
+    }
+
+    protected function injectViewCommentsAroundHtmlFragment(string $value, string $start, string $end): string
+    {
+        $valueWithOpeningComment = preg_replace(
+            '/(?<leading>\s*)(?<tag><[A-Za-z][A-Za-z0-9:-]*\b[^>]*>)/',
+            '$1'.$start.'$2',
+            $value,
+            1,
+            $openingTagCount,
+        );
+
+        if (! is_string($valueWithOpeningComment) || $openingTagCount === 0) {
+            return $value;
+        }
+
+        $valueWithClosingComment = preg_replace(
+            '/(?<tag><\/[A-Za-z][A-Za-z0-9:-]*\s*>|<[A-Za-z][A-Za-z0-9:-]*\b[^>]*\/>)(?![\s\S]*(?:<\/[A-Za-z][A-Za-z0-9:-]*\s*>|<[A-Za-z][A-Za-z0-9:-]*\b[^>]*\/>))/',
+            '$1'.$end,
+            $valueWithOpeningComment,
+            1,
+            $closingTagCount,
+        );
+
+        if (! is_string($valueWithClosingComment) || $closingTagCount === 0) {
+            return $valueWithOpeningComment;
+        }
+
+        return $valueWithClosingComment;
     }
 
     protected function wrapStandaloneTranslationEchoes(string $value): string
