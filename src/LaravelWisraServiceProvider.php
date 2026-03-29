@@ -122,36 +122,52 @@ class LaravelWisraServiceProvider extends ServiceProvider
 
     protected function shouldInjectViewCommentsAroundHtmlFragment(string $value): bool
     {
-        return (bool) preg_match('/<[A-Za-z][A-Za-z0-9:-]*\b[^>]*>/i', $value);
+        return $this->collectNativeHtmlTagMatches($value) !== [];
     }
 
     protected function injectViewCommentsAroundHtmlFragment(string $value, string $start, string $end): string
     {
-        $valueWithOpeningComment = preg_replace(
-            '/(?<leading>\s*)(?<tag><[A-Za-z][A-Za-z0-9:-]*\b[^>]*>)/',
-            '$1'.$start.'$2',
-            $value,
-            1,
-            $openingTagCount,
-        );
+        $matches = $this->collectNativeHtmlTagMatches($value);
 
-        if (! is_string($valueWithOpeningComment) || $openingTagCount === 0) {
+        if ($matches === []) {
             return $value;
         }
 
-        $valueWithClosingComment = preg_replace(
-            '/(?<tag><\/[A-Za-z][A-Za-z0-9:-]*\s*>|<[A-Za-z][A-Za-z0-9:-]*\b[^>]*\/>)(?![\s\S]*(?:<\/[A-Za-z][A-Za-z0-9:-]*\s*>|<[A-Za-z][A-Za-z0-9:-]*\b[^>]*\/>))/',
-            '$1'.$end,
-            $valueWithOpeningComment,
-            1,
-            $closingTagCount,
-        );
+        $openingTag = null;
 
-        if (! is_string($valueWithClosingComment) || $closingTagCount === 0) {
-            return $valueWithOpeningComment;
+        foreach ($matches as $match) {
+            if (! $match['isClosing']) {
+                $openingTag = $match;
+
+                break;
+            }
         }
 
-        return $valueWithClosingComment;
+        if ($openingTag === null) {
+            return $value;
+        }
+
+        $closingTag = null;
+
+        foreach (array_reverse($matches) as $match) {
+            if ($match['isClosing'] || $match['isSelfClosing']) {
+                $closingTag = $match;
+
+                break;
+            }
+        }
+
+        $closingTag ??= $matches[array_key_last($matches)];
+
+        if (! is_array($closingTag) || $openingTag['offset'] > $closingTag['offset']) {
+            return $value;
+        }
+
+        $openingOffset = $this->lineStartOffsetForPosition($value, $openingTag['offset']);
+        $valueWithOpeningComment = substr($value, 0, $openingOffset).$start.substr($value, $openingOffset);
+        $closingOffset = $closingTag['offset'] + strlen($closingTag['tag']) + strlen($start);
+
+        return substr($valueWithOpeningComment, 0, $closingOffset).$end.substr($valueWithOpeningComment, $closingOffset);
     }
 
     protected function wrapStandaloneTranslationEchoes(string $value): string
@@ -289,6 +305,56 @@ class LaravelWisraServiceProvider extends ServiceProvider
     protected function shouldAnnotateHtmlTag(string $tagName): bool
     {
         return in_array($tagName, $this->htmlTagsForLineAnnotations(), true);
+    }
+
+    protected function lineStartOffsetForPosition(string $value, int $offset): int
+    {
+        $lineStartOffset = strrpos(substr($value, 0, $offset), "\n");
+
+        if ($lineStartOffset === false) {
+            return 0;
+        }
+
+        return $lineStartOffset + 1;
+    }
+
+    /**
+     * @return array<int, array{tag: string, offset: int, isClosing: bool, isSelfClosing: bool}>
+     */
+    protected function collectNativeHtmlTagMatches(string $value): array
+    {
+        preg_match_all(
+            $this->nativeHtmlTagPattern(),
+            $value,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        );
+
+        $tagMatches = [];
+
+        foreach ($matches[0] as $index => [$tag, $offset]) {
+            $tagName = strtolower($matches['name'][$index][0]);
+
+            $tagMatches[] = [
+                'tag' => $tag,
+                'offset' => $offset,
+                'isClosing' => $matches['closing'][$index][0] === '/',
+                'isSelfClosing' => trim($matches['selfClosing'][$index][0]) === '/'
+                    || $this->isVoidHtmlTag($tagName),
+            ];
+        }
+
+        return $tagMatches;
+    }
+
+    protected function nativeHtmlTagPattern(): string
+    {
+        $tagNames = implode('|', array_map(
+            static fn (string $tag): string => preg_quote($tag, '/'),
+            array_unique($this->htmlTagsForLineAnnotations()),
+        ));
+
+        return '/<(?<closing>\/)?(?<name>'.$tagNames.')(?<attributes>(?:[^<>"\']+|"[^"]*"|\'[^\']*\')*)(?<selfClosing>\s*\/)?>/im';
     }
 
     protected function isVoidHtmlTag(string $tagName): bool
