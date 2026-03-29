@@ -438,9 +438,10 @@ class LaravelWisraServiceProvider extends ServiceProvider
         }
 
         $key = $matches['key'];
+        $locales = $this->translationCandidateLocales();
 
         if (! str_contains($key, '.')) {
-            return null;
+            return $this->resolveJsonTranslationPath($locales);
         }
 
         $group = str($key)->before('.')->value();
@@ -449,11 +450,44 @@ class LaravelWisraServiceProvider extends ServiceProvider
             return null;
         }
 
-        foreach (array_unique([app()->getLocale(), config('app.fallback_locale')]) as $locale) {
-            if (! is_string($locale) || $locale === '') {
-                continue;
-            }
+        return $this->resolvePhpTranslationPath($group, $locales);
+    }
 
+    /**
+     * @return array<int, string>
+     */
+    protected function translationCandidateLocales(): array
+    {
+        return array_values(array_filter(
+            array_unique([app()->getLocale(), config('app.fallback_locale')]),
+            static fn (mixed $locale): bool => is_string($locale) && $locale !== '',
+        ));
+    }
+
+    /**
+     * @param  array<int, string>  $locales
+     */
+    protected function resolveJsonTranslationPath(array $locales): ?string
+    {
+        foreach ($locales as $locale) {
+            $path = lang_path($locale.'.json');
+
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        $primaryLocale = $locales[0] ?? null;
+
+        return $primaryLocale === null ? null : lang_path($primaryLocale.'.json');
+    }
+
+    /**
+     * @param  array<int, string>  $locales
+     */
+    protected function resolvePhpTranslationPath(string $group, array $locales): ?string
+    {
+        foreach ($locales as $locale) {
             $path = lang_path($locale.DIRECTORY_SEPARATOR.$group.'.php');
 
             if (is_file($path)) {
@@ -461,6 +495,8 @@ class LaravelWisraServiceProvider extends ServiceProvider
             }
         }
 
-        return null;
+        $primaryLocale = $locales[0] ?? null;
+
+        return $primaryLocale === null ? null : lang_path($primaryLocale.DIRECTORY_SEPARATOR.$group.'.php');
     }
 }
