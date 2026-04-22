@@ -59,6 +59,7 @@ class LaravelWisraServiceProvider extends ServiceProvider
             return $value;
         }
 
+        $value = $this->injectCurrentRequestMetaTagsIntoHead($value);
         $value = $this->annotateHtmlElementsWithLineNumbers($value);
         $value = $this->wrapStandaloneTranslationEchoes($value);
 
@@ -152,6 +153,118 @@ class LaravelWisraServiceProvider extends ServiceProvider
                 |\bwire:[a-z0-9_.:-]+(?:\s*=|\s|>)
                 |\$wire\b
             )/ix', $value) === 1;
+    }
+
+    protected function injectCurrentRequestMetaTagsIntoHead(string $value): string
+    {
+        if (! config('laravel-wisra.inject_context_meta_tags', true)) {
+            return $value;
+        }
+
+        if (! preg_match('/<head\b[^>]*>/i', $value)) {
+            return $value;
+        }
+
+        if (str_contains($value, 'name="wisra-current-route"')) {
+            return $value;
+        }
+
+        $injectedValue = preg_replace_callback(
+            '/<head\b[^>]*>/i',
+            fn (array $matches): string => $matches[0]."\n".$this->currentRequestMetaTagsPhp(),
+            $value,
+            1,
+            $headTagCount,
+        );
+
+        return is_string($injectedValue) && $headTagCount > 0 ? $injectedValue : $value;
+    }
+
+    protected function currentRequestMetaTagsPhp(): string
+    {
+        return "<?php echo \\".__CLASS__."::renderCurrentRequestMetaTags(); ?>";
+    }
+
+    public static function renderCurrentRequestMetaTags(): string
+    {
+        if (! config('laravel-wisra.inject_context_meta_tags', true) || self::isCurrentRequestLivewire()) {
+            return '';
+        }
+
+        $request = request();
+        $route = $request->route();
+
+        $metaTags = [
+            'wisra-current-route' => $request->getPathInfo(),
+        ];
+
+        $routeName = is_object($route) && method_exists($route, 'getName')
+            ? $route->getName()
+            : null;
+
+        if (is_string($routeName) && $routeName !== '') {
+            $metaTags['wisra-current-route-name'] = $routeName;
+        }
+
+        $actionName = null;
+
+        if (is_object($route) && method_exists($route, 'getActionName')) {
+            $actionName = $route->getActionName();
+        }
+
+        if (($actionName === null || $actionName === '' || $actionName === 'Closure') && is_object($route) && method_exists($route, 'getAction')) {
+            $action = $route->getAction();
+            $candidateActionName = is_array($action) ? ($action['controller'] ?? $action['uses'] ?? null) : null;
+
+            if (is_string($candidateActionName) && $candidateActionName !== '') {
+                $actionName = $candidateActionName;
+            }
+        }
+
+        if (is_string($actionName) && $actionName !== '' && $actionName !== 'Closure') {
+            $metaTags['wisra-current-controller-action'] = $actionName;
+
+            [$controller, $action] = array_pad(explode('@', $actionName, 2), 2, null);
+
+            if (is_string($controller) && $controller !== '') {
+                $metaTags['wisra-current-controller'] = $controller;
+            }
+
+            if (is_string($action) && $action !== '') {
+                $metaTags['wisra-current-action'] = $action;
+            }
+        }
+
+        return implode("\n", array_map(
+            static fn (string $name, string $content): string => self::renderMetaTag($name, $content),
+            array_keys($metaTags),
+            array_values($metaTags),
+        ));
+    }
+
+    protected static function isCurrentRequestLivewire(): bool
+    {
+        $request = request();
+
+        if ($request->header('X-Livewire') !== null) {
+            return true;
+        }
+
+        $route = $request->route();
+        $routeName = is_object($route) && method_exists($route, 'getName')
+            ? $route->getName()
+            : null;
+
+        return is_string($routeName) && str_starts_with($routeName, 'livewire.');
+    }
+
+    protected static function renderMetaTag(string $name, string $content): string
+    {
+        return sprintf(
+            '<meta name="%s" content="%s">',
+            htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($content, ENT_QUOTES, 'UTF-8'),
+        );
     }
 
     protected function shouldInjectViewCommentsInsideBody(string $value): bool

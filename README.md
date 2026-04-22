@@ -33,6 +33,7 @@ Environment variables:
 | `LARAVEL_WISRA_ENABLED` | `true` | Enable or disable the instrumentation |
 | `LARAVEL_WISRA_LOCAL_ONLY` | `true` | Only run in the local environment |
 | `LARAVEL_WISRA_SKIP_LIVEWIRE` | `true` | Skip instrumentation for Livewire views and update requests |
+| `LARAVEL_WISRA_INJECT_CONTEXT_META_TAGS` | `true` | Inject request-level Wisra meta tags into the document `<head>` |
 
 > **Note:** After enabling or disabling Wisra, clear the compiled view cache so changes take effect:
 > ```bash
@@ -96,6 +97,19 @@ Laravel Wisra skips instrumentation for Livewire by default:
 - **Templates containing Livewire syntax** like `@livewire`, `<livewire:...>`, `wire:*`, or `$wire` are ignored
 
 If you intentionally want Wisra annotations inside Livewire-rendered Blade, set `LARAVEL_WISRA_SKIP_LIVEWIRE=false`.
+
+## Request context meta tags
+
+When a Blade document contains a `<head>` tag, Wisra can inject request-level meta tags like:
+
+```html
+<meta name="wisra-current-route" content="/app/panel">
+<meta name="wisra-current-route-name" content="panel.index">
+<meta name="wisra-current-controller" content="App\Http\Controllers\PanelController">
+<meta name="wisra-current-action" content="index">
+```
+
+These values are rendered at runtime, so they stay correct even when Blade views are cached.
 
 ## Requirements
 

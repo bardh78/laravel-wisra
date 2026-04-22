@@ -4,6 +4,7 @@ namespace Bardh78\LaravelWisra\Tests;
 
 use Bardh78\LaravelWisra\Tests\Fixtures\TestableLaravelWisraServiceProvider;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 
 class LivewireCompatibilityTest extends TestCase
 {
@@ -66,5 +67,36 @@ BLADE;
             '/project/resources/views/dashboard.blade.php',
             '<div>Hello</div>',
         ));
+    }
+
+    public function test_it_injects_runtime_meta_tags_into_document_head(): void
+    {
+        $request = Request::create('/app/panel', 'GET');
+        $route = new Route(['GET'], '/app/panel', [
+            'as' => 'panel.index',
+            'uses' => 'App\\Http\\Controllers\\PanelController@index',
+            'controller' => 'App\\Http\\Controllers\\PanelController@index',
+        ]);
+
+        $request->setRouteResolver(static fn () => $route);
+
+        $this->app->instance('request', $request);
+
+        $compiled = $this->provider->instrument(
+            "<html>\n<head>\n    <title>Panel</title>\n</head>\n<body></body>\n</html>",
+            '/project/resources/views/layouts/app.blade.php',
+        );
+
+        $this->assertStringContainsString(
+            '<?php echo \\Bardh78\\LaravelWisra\\LaravelWisraServiceProvider::renderCurrentRequestMetaTags(); ?>',
+            $compiled,
+        );
+
+        $metaTags = \Bardh78\LaravelWisra\LaravelWisraServiceProvider::renderCurrentRequestMetaTags();
+
+        $this->assertStringContainsString('<meta name="wisra-current-route" content="/app/panel">', $metaTags);
+        $this->assertStringContainsString('<meta name="wisra-current-route-name" content="panel.index">', $metaTags);
+        $this->assertStringContainsString('<meta name="wisra-current-controller" content="App\Http\Controllers\PanelController">', $metaTags);
+        $this->assertStringContainsString('<meta name="wisra-current-action" content="index">', $metaTags);
     }
 }

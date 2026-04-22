@@ -17,4 +17,6 @@ return [
     'local_only' => env('LARAVEL_WISRA_LOCAL_ONLY', true),
 
     'skip_livewire' => env('LARAVEL_WISRA_SKIP_LIVEWIRE', true),
+
+    'inject_context_meta_tags' => env('LARAVEL_WISRA_INJECT_CONTEXT_META_TAGS', true),
 ];
