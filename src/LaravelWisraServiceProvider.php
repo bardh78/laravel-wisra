@@ -47,33 +47,36 @@ class LaravelWisraServiceProvider extends ServiceProvider
         $compiler->prepareStringsForCompilationUsing(function (string $value) use ($compiler): string {
             $path = $compiler->getPath();
 
-            if (! is_string($path) || $path === '') {
-                return $value;
-            }
-
-            if ($this->shouldSkipBladeInstrumentation($path)) {
-                return $value;
-            }
-
-            $value = $this->annotateHtmlElementsWithLineNumbers($value);
-            $value = $this->wrapStandaloneTranslationEchoes($value);
-
-            $start = "<?php echo '<!-- [view] {$path} -->'; ?>\n";
-            $end = "\n<?php echo '<!-- [/view] {$path} -->'; ?>";
-
-            if ($this->shouldInjectViewCommentsInsideBody($value)) {
-                return $this->injectViewCommentsInsideBody($value, $start, $end);
-            }
-
-            if ($this->shouldInjectViewCommentsAroundHtmlFragment($value)) {
-                return $this->injectViewCommentsAroundHtmlFragment($value, $start, $end);
-            }
-
-            return $value;
+            return is_string($path) && $path !== ''
+                ? $this->instrumentBladeTemplate($value, $path)
+                : $value;
         });
     }
 
-    protected function shouldSkipBladeInstrumentation(string $path): bool
+    protected function instrumentBladeTemplate(string $value, string $path): string
+    {
+        if ($this->shouldSkipBladeInstrumentation($path, $value)) {
+            return $value;
+        }
+
+        $value = $this->annotateHtmlElementsWithLineNumbers($value);
+        $value = $this->wrapStandaloneTranslationEchoes($value);
+
+        $start = "<?php echo '<!-- [view] {$path} -->'; ?>\n";
+        $end = "\n<?php echo '<!-- [/view] {$path} -->'; ?>";
+
+        if ($this->shouldInjectViewCommentsInsideBody($value)) {
+            return $this->injectViewCommentsInsideBody($value, $start, $end);
+        }
+
+        if ($this->shouldInjectViewCommentsAroundHtmlFragment($value)) {
+            return $this->injectViewCommentsAroundHtmlFragment($value, $start, $end);
+        }
+
+        return $value;
+    }
+
+    protected function shouldSkipBladeInstrumentation(string $path, string $value = ''): bool
     {
         if (str_contains($path, 'storage/framework/views')) {
             return true;
@@ -83,7 +86,72 @@ class LaravelWisraServiceProvider extends ServiceProvider
             return true;
         }
 
+        if ($this->shouldSkipLivewireInstrumentation($path, $value)) {
+            return true;
+        }
+
         return false;
+    }
+
+    protected function shouldSkipLivewireInstrumentation(string $path, string $value): bool
+    {
+        if (! config('laravel-wisra.skip_livewire', true)) {
+            return false;
+        }
+
+        if ($this->isLivewireRequest()) {
+            return true;
+        }
+
+        if ($this->isLivewireViewPath($path)) {
+            return true;
+        }
+
+        return $this->containsLivewireSyntax($value);
+    }
+
+    protected function isLivewireRequest(): bool
+    {
+        if (! $this->app->bound('request')) {
+            return false;
+        }
+
+        $request = $this->app['request'];
+
+        if (! method_exists($request, 'header')) {
+            return false;
+        }
+
+        if ($request->header('X-Livewire') !== null) {
+            return true;
+        }
+
+        $route = $request->route();
+        $routeName = is_object($route) && method_exists($route, 'getName')
+            ? $route->getName()
+            : null;
+
+        return is_string($routeName) && str_starts_with($routeName, 'livewire.');
+    }
+
+    protected function isLivewireViewPath(string $path): bool
+    {
+        $normalizedPath = str_replace('\\', '/', $path);
+
+        return str_contains($normalizedPath, '/resources/views/livewire/')
+            || str_contains($normalizedPath, '/views/livewire/');
+    }
+
+    protected function containsLivewireSyntax(string $value): bool
+    {
+        return preg_match('/(?:
+                \<livewire:[^>]+>
+                |<\/livewire:[^>]+>
+                |@livewire\b
+                |@volt\b
+                |\bwire:[a-z0-9_.:-]+(?:\s*=|\s|>)
+                |\$wire\b
+            )/ix', $value) === 1;
     }
 
     protected function shouldInjectViewCommentsInsideBody(string $value): bool

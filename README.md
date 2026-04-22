@@ -32,6 +32,7 @@ Environment variables:
 |----------|---------|-------------|
 | `LARAVEL_WISRA_ENABLED` | `true` | Enable or disable the instrumentation |
 | `LARAVEL_WISRA_LOCAL_ONLY` | `true` | Only run in the local environment |
+| `LARAVEL_WISRA_SKIP_LIVEWIRE` | `true` | Skip instrumentation for Livewire views and update requests |
 
 > **Note:** After enabling or disabling Wisra, clear the compiled view cache so changes take effect:
 > ```bash
@@ -85,6 +86,16 @@ An LLM can now:
 1. **Enable in local/dev** — Keep `local_only` true so production HTML stays clean
 2. **Use with browser MCP tools** — When the assistant inspects the page, it gets file/line hints
 3. **Combine with Cursor rules** — Mention that view comments are present so the assistant knows to use them
+
+## Livewire compatibility
+
+Laravel Wisra skips instrumentation for Livewire by default:
+
+- **Livewire update requests** are ignored so Wisra doesn't alter Livewire's AJAX payload rendering
+- **Views in `resources/views/livewire/...`** are ignored
+- **Templates containing Livewire syntax** like `@livewire`, `<livewire:...>`, `wire:*`, or `$wire` are ignored
+
+If you intentionally want Wisra annotations inside Livewire-rendered Blade, set `LARAVEL_WISRA_SKIP_LIVEWIRE=false`.
 
 ## Requirements
 

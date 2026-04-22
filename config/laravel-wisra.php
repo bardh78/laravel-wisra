@@ -15,4 +15,6 @@ return [
     'enabled' => env('LARAVEL_WISRA_ENABLED', true),
 
     'local_only' => env('LARAVEL_WISRA_LOCAL_ONLY', true),
+
+    'skip_livewire' => env('LARAVEL_WISRA_SKIP_LIVEWIRE', true),
 ];
